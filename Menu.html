@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Travel Restaurant | Quick Availability Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;750&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Rajdhani', sans-serif; }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+    </style>
+</head>
+<body class="bg-[#050508] text-slate-100 min-h-screen selection:bg-red-600 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-[#0f0f14]/90 border-b border-red-900/40 sticky top-0 z-50 backdrop-blur-md shadow-lg shadow-red-950/20">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-radial from-white via-red-600 to-red-900 shadow-md shadow-red-600/50 flex items-center justify-center animate-pulse">
+                    <span class="text-xl">⚡</span>
+                </div>
+                <div>
+                    <h1 class="font-orbitron text-lg font-black tracking-wider text-white drop-shadow-[0_0_8px_rgba(255,30,60,0.6)]">AVAILABILITY MANAGER</h1>
+                    <p class="text-[11px] text-slate-400 uppercase tracking-widest">Fast Travel Restaurant — Real-Time Inventory Portal</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <!-- Live Sync Indicator -->
+                <div class="bg-slate-900 border border-slate-800 text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center space-x-2">
+                    <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="sync-status-text" class="text-slate-300">Live Auto-Sync Active</span>
+                </div>
+                <a href="kitchen.html" class="bg-slate-900 border border-red-950 hover:border-red-600 text-slate-300 hover:text-white px-4 py-2 rounded-xl text-xs font-bold font-orbitron tracking-wider transition">DELIVERY COMMAND CENTER ➔</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container Layout -->
+    <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Quick Filter / Overview Info Box -->
+        <div class="lg:col-span-1">
+            <div class="bg-[#0f0f14] border border-red-950 p-6 rounded-3xl shadow-xl sticky top-24 space-y-4">
+                <h3 class="font-orbitron text-sm font-bold text-white flex items-center space-x-2 border-b border-red-950 pb-3">
+                    <span>📊</span>
+                    <span>Status Control Deck</span>
+                </h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Changes made here sync automatically across storage and cloud databases in real time—no manual refresh button required.
+                </p>
+
+                <div class="bg-[#12121a] border border-red-950/60 p-4 rounded-2xl space-y-2">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Total Provisions:</span>
+                        <span id="stat-total" class="font-orbitron font-bold text-white">0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Active / Available:</span>
+                        <span id="stat-available" class="font-orbitron font-bold text-emerald-400">0</span>
+                    </div>
+                </div>
+
+                <div class="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl text-[11px] text-emerald-400 flex items-center space-x-2">
+                    <span>🟢</span>
+                    <span>Auto-Sync is running in the background every 3 seconds.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Full Menu Item List with Instant Availability Switch -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="bg-[#0f0f14] border border-red-950 p-6 rounded-3xl shadow-xl space-y-4">
+                <div class="flex justify-between items-center border-b border-red-950 pb-3">
+                    <h2 class="font-orbitron text-base font-bold text-white flex items-center space-x-2">
+                        <span>📜</span>
+                        <span>Item Availability Matrix</span>
+                    </h2>
+                    <span id="sync-feedback" class="text-[11px] text-emerald-400 font-bold opacity-0 transition-opacity">Saved Instantly ✓</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-red-950 text-slate-400 uppercase tracking-wider font-orbitron text-[10px]">
+                                <th class="py-3 px-3">Provision Details</th>
+                                <th class="py-3 px-3">Category</th>
+                                <th class="py-3 px-3">Price</th>
+                                <th class="py-3 px-3 text-right">Availability Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manager-menu-body" class="divide-y divide-red-950/40">
+                            <!-- Injected dynamically via script -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Essential Sanitization & Config Helper -->
+    <script src="config.js"></script>
+    <script>
+        let isSyncing = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadManagerMenu();
+            // Automatically poll/sync every 3 seconds in the background
+            setInterval(() => {
+                loadManagerMenu(true);
+            }, 3000);
+        });
+
+        function sanitizeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        async function loadManagerMenu(isBackground = false) {
+            if (isSyncing) return;
+            let items = [];
+            
+            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+                try {
+                    let res = await fetch(CONFIG.API_URL + "?action=getMenu");
+                    let cloudItems = await res.json();
+                    if (Array.isArray(cloudItems) && cloudItems.length > 0) {
+                        items = cloudItems;
+                    }
+                } catch(err) {}
+            }
+
+            if (items.length === 0) {
+                const rawLocal = localStorage.getItem('fast_travel_menu');
+                if (rawLocal) {
+                    try { items = JSON.parse(rawLocal); } catch(e) {}
+                }
+            }
+
+            if (items.length === 0) {
+                items = [
+                    { id: "1", name: "Respawn Hero Meal", category: "Heros Meals", price: 195, description: "Double smashed beef patty, cheddar cheese, and signature sauce.", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80", available: "TRUE" },
+                    { id: "2", name: "Power-Up Fries", category: "Sides", price: 65, description: "Golden crispy fries loaded with melted cheese sauce.", image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80", available: "TRUE" }
+                ];
+                localStorage.setItem('fast_travel_menu', JSON.stringify(items));
+            }
+
+            window.currentManagerMenuCache = items;
+            
+            // Update stats
+            document.getElementById("stat-total").innerText = items.length;
+            const availableCount = items.filter(i => i.available === "TRUE" || i.available === true || i.available === "1" || i.available === "true").length;
+            document.getElementById("stat-available").innerText = availableCount;
+
+            let tbody = document.getElementById("manager-menu-body");
+            
+            let htmlContent = "";
+            items.forEach(item => {
+                let isAvail = (item.available === "TRUE" || item.available === true || item.available === "1" || item.available === "true");
+
+                htmlContent += `
+                    <tr class="hover:bg-[#12121a]/50 transition">
+                        <td class="py-3 px-3">
+                            <div class="font-bold text-white">${sanitizeHTML(item.name)}</div>
+                            <div class="text-[10px] text-slate-500 truncate max-w-xs">${sanitizeHTML(item.description || '')}</div>
+                        </td>
+                        <td class="py-3 px-3">
+                            <span class="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-[10px]">${sanitizeHTML(item.category || 'Heros Meals')}</span>
+                        </td>
+                        <td class="py-3 px-3 font-orbitron font-bold text-amber-400">${item.price} EGP</td>
+                        <td class="py-3 px-3 text-right">
+                            <select onchange="updateItemAvailability('${item.id || item.name}', this.value)" class="bg-[#12121a] border ${isAvail ? 'border-emerald-500/30 text-emerald-400' : 'border-rose-500/30 text-rose-400'} px-3 py-1.5 rounded-xl text-xs font-bold outline-none focus:border-red-600 transition cursor-pointer">
+                                <option value="TRUE" ${isAvail ? 'selected' : ''}>Available 🟢</option>
+                                <option value="FALSE" ${!isAvail ? 'selected' : ''}>Unavailable 🔴</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = htmlContent;
+        }
+
+        async function updateItemAvailability(id, newStatus) {
+            isSyncing = true;
+            let items = window.currentManagerMenuCache || [];
+            let item = items.find(i => String(i.id) === String(id) || i.name === id);
+            if (!item) {
+                isSyncing = false;
+                return;
+            }
+
+            item.available = newStatus;
+            localStorage.setItem('fast_travel_menu', JSON.stringify(items));
+            loadManagerMenu(true);
+
+            // Flash feedback indicator
+            const feedback = document.getElementById("sync-feedback");
+            feedback.style.opacity = "1";
+            setTimeout(() => { feedback.style.opacity = "0"; }, 1500);
+
+            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+                try {
+                    await fetch(CONFIG.API_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ 
+                            action: "updateItemAvailability", 
+                            id: item.id || "",
+                            name: item.name || "",
+                            available: item.available
+                        })
+                    });
+                } catch(err) {}
+            }
+            isSyncing = false;
+        }
+    </script>
+</body>
+</html>

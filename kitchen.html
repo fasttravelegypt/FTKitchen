@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Travel Restaurant | Advanced Kitchen Command Center</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;750&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Rajdhani', sans-serif; }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+
+        /* Thermal Printer Receipt Styles (Optimized for 80mm Xprinter XP-80) */
+        @media print {
+            body * {
+                visibility: hidden !important;
+                display: none !important;
+            }
+            #thermal-receipt-print-area, #thermal-receipt-print-area * {
+                visibility: visible !important;
+                display: block !important;
+            }
+            #thermal-receipt-print-area {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 72mm !important; /* Fits nicely within 80mm thermal paper with margins */
+                margin: 0 !important;
+                padding: 5mm !important;
+                background: white !important;
+                color: black !important;
+                font-family: 'Courier New', Courier, monospace !important;
+                font-size: 12px !important;
+                line-height: 1.2 !important;
+            }
+            /* Fix inner flex layouts inside print area for thermal printer compatibility */
+            #thermal-receipt-print-area div[style*="display: flex"] {
+                display: flex !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-[#050508] text-slate-100 min-h-screen selection:bg-red-600 selection:text-white">
+
+    <!-- Audio Unlock Warning Banner (Required by browsers for background/autoplay sound) -->
+    <div id="audio-unlock-banner" onclick="unlockAudio()" class="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white px-4 py-3 text-center text-xs font-orbitron font-bold tracking-wider cursor-pointer shadow-lg sticky top-0 z-[100] flex items-center justify-center space-x-2 animate-pulse">
+        <span>🔊</span>
+        <span>SYSTEM NOTICE: Click anywhere here or on the page to activate background sound alerts & audio alarms!</span>
+        <span>🔊</span>
+    </div>
+
+    <!-- Top Navigation / Command Header -->
+    <header class="bg-[#0f0f14]/90 border-b border-red-900/40 sticky top-10 z-50 backdrop-blur-md shadow-lg shadow-red-950/20">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-radial from-white via-red-600 to-red-900 shadow-md shadow-red-600/50 flex items-center justify-center animate-pulse">
+                    <span class="text-xl">👨‍🍳</span>
+                </div>
+                <div>
+                    <h1 class="font-orbitron text-lg font-black tracking-wider text-white drop-shadow-[0_0_8px_rgba(255,30,60,0.6)]">DELIVERY COMMAND CENTER</h1>
+                    <p class="text-[11px] text-slate-400 uppercase tracking-widest">Fast Travel Restaurant</p>
+                </div>
+            </div>
+
+            <div class="flex items-center flex-wrap gap-3">
+                <!-- WhatsApp Status Indicator -->
+                <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3 py-1.5 rounded-xl font-bold flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>WhatsApp Desktop Bridge: Active</span>
+                </div>
+
+                <!-- Auto Refresh Status Pill -->
+                <div class="bg-slate-900 border border-slate-800 text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center space-x-2">
+                    <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span id="sync-status-text" class="text-slate-300">Live Sync Active</span>
+                </div>
+
+                <a href="Menu.html" class="bg-slate-900 border border-red-950 hover:border-red-600 text-slate-300 hover:text-white px-4 py-2 rounded-xl text-xs font-bold font-orbitron tracking-wider transition">Availability Manager ➔</a>
+
+                <button onclick="manualRefreshOrders()" class="bg-gradient-to-r from-red-600 to-red-800 hover:brightness-110 text-white px-4 py-2 rounded-xl text-xs font-bold font-orbitron tracking-wider transition shadow-lg shadow-red-600/30 flex items-center space-x-1.5 cursor-pointer">
+                    <span>🔄</span>
+                    <span>Force Sync</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Command Center Grid / Layout -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+        <!-- Metrics & Quick Control Toolbar -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-[#0f0f14] border border-red-950 p-4 rounded-2xl shadow-md flex flex-col justify-between">
+                <span class="text-xs text-slate-400 uppercase font-semibold">Active Queue (Excl. Delivered/Cancelled)</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="metric-total" class="font-orbitron text-2xl font-black text-white">0</span>
+                    <span class="text-xs text-amber-400 font-bold">Active Orders</span>
+                </div>
+            </div>
+            <div class="bg-[#0f0f14] border border-red-950 p-4 rounded-2xl shadow-md flex flex-col justify-between">
+                <span class="text-xs text-slate-400 uppercase font-semibold">Preparing in Kitchen</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="metric-preparing" class="font-orbitron text-2xl font-black text-blue-400">0</span>
+                    <span class="text-xs text-blue-400 font-bold">In Progress</span>
+                </div>
+            </div>
+            <div class="bg-[#0f0f14] border border-red-950 p-4 rounded-2xl shadow-md flex flex-col justify-between">
+                <span class="text-xs text-slate-400 uppercase font-semibold">Dispatched / Ready</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="metric-dispatched" class="font-orbitron text-2xl font-black text-purple-400">0</span>
+                    <span class="text-xs text-purple-400 font-bold">Out for Delivery</span>
+                </div>
+            </div>
+            <div class="bg-[#0f0f14] border border-red-950 p-4 rounded-2xl shadow-md flex flex-col justify-between">
+                <span class="text-xs text-slate-400 uppercase font-semibold">Total Revenue (Queue)</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="metric-revenue" class="font-orbitron text-xl font-black text-emerald-400">0 EGP</span>
+                    <span class="text-xs text-emerald-400 font-bold">Estimated</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter & Search Toolbar Bar -->
+        <div class="bg-[#0f0f14] border border-red-950 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-lg">🔍</span>
+                <input type="text" id="order-search" oninput="filterAndRenderOrders()" placeholder="Search by customer name, phone, or order ID..." class="bg-[#12121a] border border-red-950 text-white px-4 py-2 rounded-xl text-xs outline-none focus:border-red-600 transition w-72">
+            </div>
+
+            <!-- Status Tabs Filter -->
+            <div class="flex items-center space-x-2 overflow-x-auto">
+                <button onclick="setFilterStatus('All')" id="filter-btn-All" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 text-white transition cursor-pointer">All (Active)</button>
+                <button onclick="setFilterStatus('Idle')" id="filter-btn-Idle" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer">Idle 🚨</button>
+                <button onclick="setFilterStatus('Preparing')" id="filter-btn-Preparing" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer">Preparing</button>
+                <button onclick="setFilterStatus('Dispatched')" id="filter-btn-Dispatched" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer">Dispatched</button>
+                <button onclick="setFilterStatus('Delivered')" id="filter-btn-Delivered" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer">Delivered ⭐</button>
+                <button onclick="setFilterStatus('Cancelled')" id="filter-btn-Cancelled" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer">Cancelled ❌</button>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <label class="text-xs text-slate-400 font-semibold flex items-center space-x-1.5 cursor-pointer">
+                    <input type="checkbox" id="auto-whatsapp-toggle" checked class="accent-red-600 w-4 h-4 rounded">
+                    <span>Auto-Launch Windows WhatsApp App on Status Change</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Orders Grid Container -->
+        <div id="kitchen-orders-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Injected dynamically via script -->
+        </div>
+    </main>
+
+    <!-- Hidden Thermal Receipt Print Container (Optimized for 80mm Xprinter XP-80) -->
+    <div id="thermal-receipt-print-area" class="hidden"></div>
+
+<!-- Audio Element with loop configuration -->
+    <audio id="alarm-sound" src="https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3" preload="auto" loop></audio>
+
+    <!-- App Configuration & Automation Script -->
+    <script src="config.js"></script>
+    <script>
+        let previousOrderCount = 0;
+        let activeStatusFilter = 'All';
+        let audioUnlocked = false;
+
+        // Unlock audio context on any user interaction
+        function unlockAudio() {
+            const alarm = document.getElementById('alarm-sound');
+            alarm.play().then(() => {
+                alarm.pause();
+                alarm.currentTime = 0;
+                audioUnlocked = true;
+                const banner = document.getElementById('audio-unlock-banner');
+                if (banner) banner.remove();
+            }).catch(e => console.log("Audio unlock pending interaction"));
+        }
+
+        window.addEventListener('click', () => {
+            if (!audioUnlocked) unlockAudio();
+        }, { once: true });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadOrders();
+            setInterval(loadOrders, 2000);
+        });
+
+        async function loadOrders() {
+            let orders = [];
+            const rawLocal = localStorage.getItem('fast_travel_orders');
+            if (rawLocal) {
+                try { orders = JSON.parse(rawLocal); } catch(e) {}
+            }
+
+            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+                try {
+                    let res = await fetch(CONFIG.API_URL + "?action=getOrders");
+                    let cloudOrders = await res.json();
+                    if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+                        orders = cloudOrders.map(o => {
+                            let existingStatus = o.Status || o.status;
+                            if (!existingStatus || existingStatus === 'Received') {
+                                existingStatus = existingStatus === 'Received' ? 'Preparing' : 'Idle';
+                            }
+                            
+                            let rawItems = o.Items || o.items || '[]';
+                            if (typeof rawItems === 'string') {
+                                try { rawItems = JSON.parse(rawItems); } catch(e) { rawItems = []; }
+                            }
+                            
+                            let parsedItems = rawItems.map(i => {
+                                if (typeof i === 'string') {
+                                    let priceMatch = i.match(/\[Price:\s*([\d.]+)\s*EGP\]/i);
+                                    let itemPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                                    
+                                    let sideMatch = i.match(/\[Side:\s*([^\]]+)\]/i);
+                                    let sidesMatch = i.match(/\[Sides:\s*([^\]]+)\]/i);
+                                    let flavorMatch = i.match(/\[Flavor:\s*([^\]]+)\]/i);
+                                    let flavorsMatch = i.match(/\[Flavors:\s*([^\]]+)\]/i);
+                                    let brothMatch = i.match(/\[Broth:\s*([^\]]+)\]/i);
+                                    let noodlesMatch = i.match(/\[Noodles:\s*([^\]]+)\]/i);
+                                    let spiceMatch = i.match(/\[Spice:\s*([^\]]+)\]/i);
+                                    let addonsMatch = i.match(/\[Add-ons:\s*([^\]]+)\]/i);
+
+                                    let cleanName = i.replace(/\[Price:\s*[\d.]+\s*EGP\]/gi, '')
+                                                     .replace(/\[Side:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Sides:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Flavor:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Flavors:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Broth:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Noodles:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Spice:\s*[^\]]+\]/gi, '')
+                                                     .replace(/\[Add-ons:\s*[^\]]+\]/gi, '')
+                                                     .trim();
+
+                                    let qtyMatch = cleanName.match(/^(\d+)x\s*(.*)$/);
+                                    
+                                    return {
+                                        qty: qtyMatch ? parseInt(qtyMatch[1]) : 1,
+                                        name: qtyMatch ? qtyMatch[2] : cleanName,
+                                        price: itemPrice,
+                                        side: sideMatch ? sideMatch[1] : (sidesMatch ? sidesMatch[1] : null),
+                                        flavor: flavorMatch ? flavorMatch[1] : (flavorsMatch ? flavorsMatch[1] : null),
+                                        broth: brothMatch ? brothMatch[1] : null,
+                                        noodles: noodlesMatch ? noodlesMatch[1] : null,
+                                        spice: spiceMatch ? spiceMatch[1] : null,
+                                        addons: addonsMatch ? addonsMatch[1].split(', ').map(s => s.trim()) : []
+                                    };
+                                } else {
+                                    return {
+                                        qty: i.qty || i.Quantity || 1,
+                                        name: i.name || i.Name || 'Item',
+                                        price: i.price || i.Price || 0,
+                                        side: i.selectedSide || i.side || i.Side || null,
+                                        flavor: i.selectedFlavor || i.flavor || i.Flavor || null,
+                                        broth: i.broth || i.Broth || null,
+                                        noodles: i.noodles || i.Noodles || null,
+                                        spice: i.spice || i.Spice || null,
+                                        addons: i.addons || i.Addons || []
+                                    };
+                                }
+                            });
+
+                            return {
+                                orderId: o.OrderID || o.orderId,
+                                name: o.CustomerName || o.name,
+                                phone: o.CustomerPhone || o.phone,
+                                address: o.Address || o.address || `${o.City || ''}, ${o.District || ''}`,
+                                payment: o.Payment || o.payment || 'Cash on Delivery',
+                                items: parsedItems,
+                                total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
+                                status: existingStatus,
+                                timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
+                            };
+                        });
+                    }
+                } catch(err) {}
+            }
+
+            orders = orders.map(o => {
+                if (!o.status || o.status === '' || o.status === 'Received') {
+                    o.status = o.status === 'Received' ? 'Preparing' : 'Idle';
+                }
+                
+                if (o.items && Array.isArray(o.items)) {
+                    o.items = o.items.map(i => {
+                        if (typeof i === 'string') {
+                            let priceMatch = i.match(/\[Price:\s*([\d.]+)\s*EGP\]/i);
+                            let itemPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                            
+                            let sideMatch = i.match(/\[Side:\s*([^\]]+)\]/i);
+                            let sidesMatch = i.match(/\[Sides:\s*([^\]]+)\]/i);
+                            let flavorMatch = i.match(/\[Flavor:\s*([^\]]+)\]/i);
+                            let flavorsMatch = i.match(/\[Flavors:\s*([^\]]+)\]/i);
+                            let brothMatch = i.match(/\[Broth:\s*([^\]]+)\]/i);
+                            let noodlesMatch = i.match(/\[Noodles:\s*([^\]]+)\]/i);
+                            let spiceMatch = i.match(/\[Spice:\s*([^\]]+)\]/i);
+                            let addonsMatch = i.match(/\[Add-ons:\s*([^\]]+)\]/i);
+
+                            let cleanName = i.replace(/\[Price:\s*[\d.]+\s*EGP\]/gi, '')
+                                             .replace(/\[Side:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Sides:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Flavor:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Flavors:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Broth:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Noodles:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Spice:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Add-ons:\s*[^\]]+\]/gi, '')
+                                             .trim();
+
+                            let qtyMatch = cleanName.match(/^(\d+)x\s*(.*)$/);
+                            return {
+                                qty: qtyMatch ? parseInt(qtyMatch[1]) : 1,
+                                name: qtyMatch ? qtyMatch[2] : cleanName,
+                                price: itemPrice,
+                                side: sideMatch ? sideMatch[1] : (sidesMatch ? sidesMatch[1] : null),
+                                flavor: flavorMatch ? flavorMatch[1] : (flavorsMatch ? flavorsMatch[1] : null),
+                                broth: brothMatch ? brothMatch[1] : null,
+                                noodles: noodlesMatch ? noodlesMatch[1] : null,
+                                spice: spiceMatch ? spiceMatch[1] : null,
+                                addons: addonsMatch ? addonsMatch[1].split(', ').map(s => s.trim()) : []
+                            };
+                        } else {
+                            return {
+                                qty: i.qty || i.Quantity || 1,
+                                name: i.name || i.Name || 'Item',
+                                price: i.price || i.Price || 0,
+                                side: i.selectedSide || i.side || i.Side || null,
+                                flavor: i.selectedFlavor || i.flavor || i.Flavor || null,
+                                broth: i.broth || i.Broth || null,
+                                noodles: i.noodles || i.Noodles || null,
+                                spice: i.spice || i.Spice || null,
+                                addons: i.addons || i.Addons || []
+                            };
+                        }
+                    });
+                }
+                
+                return o;
+            });
+
+            const hasIdleOrders = orders.some(o => (o.status || '').toLowerCase() === 'idle');
+            
+            if (orders.length > previousOrderCount && previousOrderCount !== 0) {
+                playLoudAlarm();
+            } else if (hasIdleOrders) {
+                const alarm = document.getElementById('alarm-sound');
+                if (alarm.paused && audioUnlocked) {
+                    alarm.play().catch(err => console.log("Alarm loop waiting for interaction"));
+                }
+            }
+
+            if (!hasIdleOrders) {
+                stopLoudAlarm();
+            }
+
+            previousOrderCount = orders.length;
+
+            window.currentOrdersCache = orders;
+            updateMetrics(orders);
+            filterAndRenderOrders();
+        }
+
+        function playLoudAlarm() {
+            const alarm = document.getElementById('alarm-sound');
+            if (alarm.paused) {
+                alarm.currentTime = 0;
+                alarm.volume = 1.0;
+                alarm.play().catch(err => {
+                    console.log("Autoplay blocked or audio context locked. Please click the banner.");
+                });
+            }
+        }
+
+        function stopLoudAlarm() {
+            const alarm = document.getElementById('alarm-sound');
+            if (!alarm.paused) {
+                alarm.pause();
+                alarm.currentTime = 0;
+            }
+        }
+
+        function updateMetrics(orders) {
+            const activeOrders = orders.filter(o => {
+                const s = (o.status || '').toLowerCase();
+                return s !== 'delivered' && !s.startsWith('cancelled');
+            });
+            document.getElementById('metric-total').innerText = activeOrders.length;
+            
+            const preparingCount = orders.filter(o => (o.status || '').toLowerCase() === 'preparing').length;
+            const dispatchedCount = orders.filter(o => ['dispatched', 'ready', 'completed'].includes((o.status || '').toLowerCase())).length;
+            
+            document.getElementById('metric-preparing').innerText = preparingCount;
+            document.getElementById('metric-dispatched').innerText = dispatchedCount;
+
+            let totalRev = activeOrders.reduce((sum, o) => {
+                let cleanVal = parseFloat(String(o.total || '0').replace(/[^0-9.]/g, '')) || 0;
+                return sum + cleanVal;
+            }, 0);
+            document.getElementById('metric-revenue').innerText = `${totalRev.toFixed(0)} EGP`;
+        }
+
+        function setFilterStatus(status) {
+            activeStatusFilter = status;
+            ['All', 'Idle', 'Preparing', 'Dispatched', 'Delivered', 'Cancelled'].forEach(s => {
+                const btn = document.getElementById(`filter-btn-${s}`);
+                if (!btn) return;
+                if (s === status) {
+                    btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 text-white transition cursor-pointer shadow-md shadow-red-600/30";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-[#12121a] border border-red-950 text-slate-400 hover:text-white transition cursor-pointer";
+                }
+            });
+            filterAndRenderOrders();
+        }
+
+        function filterAndRenderOrders() {
+            const orders = window.currentOrdersCache || [];
+            const searchTerm = (document.getElementById('order-search').value || '').toLowerCase();
+
+            const filtered = orders.filter(o => {
+                const sLower = (o.status || '').toLowerCase();
+                
+                let matchesStatus = false;
+                if (activeStatusFilter === 'All') {
+                    matchesStatus = sLower !== 'delivered' && !sLower.startsWith('cancelled');
+                } else if (activeStatusFilter === 'Cancelled') {
+                    matchesStatus = sLower.startsWith('cancelled');
+                } else {
+                    matchesStatus = sLower === activeStatusFilter.toLowerCase();
+                }
+
+                const matchesSearch = !searchTerm || 
+                    (o.orderId || '').toLowerCase().includes(searchTerm) ||
+                    (o.name || '').toLowerCase().includes(searchTerm) ||
+                    (o.phone || '').toLowerCase().includes(searchTerm);
+                
+                return matchesStatus && matchesSearch;
+            });
+
+            const grid = document.getElementById('kitchen-orders-grid');
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full bg-[#0f0f14] border border-red-950 p-12 rounded-3xl text-center space-y-3 shadow-xl">
+                        <span class="text-4xl">☕</span>
+                        <h3 class="font-orbitron text-lg font-bold text-white">No orders found in this filter view</h3>
+                        <p class="text-xs text-slate-500">All customer quests are completed or waiting for new dispatches...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = filtered.slice().reverse().map(order => {
+                let statusColor = "bg-blue-500/10 text-blue-400 border-blue-500/30";
+                const sLower = (order.status || '').toLowerCase();
+                if (sLower === 'idle') statusColor = "bg-rose-600/20 text-rose-400 border-rose-500/50 animate-pulse";
+                if (sLower === 'preparing') statusColor = "bg-blue-500/10 text-blue-400 border-blue-500/30";
+                if (sLower === 'dispatched' || sLower === 'ready') statusColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+                if (sLower === 'delivered' || sLower === 'completed') statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                if (sLower.startsWith('cancelled')) statusColor = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+
+                let itemsHtml = (order.items || []).map(i => {
+                    let detailsSub = "";
+                    if (i.side) detailsSub += `<span class="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded ml-1">Side: ${i.side}</span>`;
+                    if (i.flavor) detailsSub += `<span class="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded ml-1">Flavor: ${i.flavor}</span>`;
+                    if (i.broth) detailsSub += `<span class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded ml-1">Broth: ${i.broth}</span>`;
+                    if (i.noodles) detailsSub += `<span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-1">Noodles: ${i.noodles}</span>`;
+                    if (i.spice) detailsSub += `<span class="text-[10px] text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded ml-1">Spice: ${i.spice}</span>`;
+                    if (i.addons && i.addons.length > 0) detailsSub += `<span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded ml-1">Add-ons: ${i.addons.join(', ')}</span>`;
+
+                    return `
+                        <div class="py-1.5 border-b border-red-950/40 last:border-0">
+                            <div class="flex justify-between text-xs text-slate-300">
+                                <span><strong class="text-red-400 font-orbitron">${i.qty}x</strong> ${i.name}</span>
+                                <span class="font-semibold text-amber-400">${(parseFloat(i.price || 0) * parseInt(i.qty || 1))} EGP</span>
+                            </div>
+                            ${detailsSub ? `<div class="mt-1 flex flex-wrap gap-1">${detailsSub}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+let cleanPhone = String(order.phone || '').trim();
+if (cleanPhone.startsWith('0')) {
+    cleanPhone = '2' + cleanPhone; // Turns 010xxxxxxxx into 2010xxxxxxxx
+} else if (cleanPhone.startsWith('1') && cleanPhone.length === 10) {
+    cleanPhone = '20' + cleanPhone; // Turns 1003601149 into 201003601149
+} else if (!cleanPhone.startsWith('2') && cleanPhone.length === 10) {
+    cleanPhone = '20' + cleanPhone;
+}
+
+                let itemsWhatsAppText = (order.items || []).map(i => {
+                    let optStr = `• ${i.name} (x${i.qty})`;
+                    if (i.side) optStr += ` [Side: ${i.side}]`;
+                    if (i.flavor) optStr += ` [Flavor: ${i.flavor}]`;
+                    if (i.broth) optStr += ` [Broth: ${i.broth}]`;
+                    if (i.noodles) optStr += ` [Noodles: ${i.noodles}]`;
+                    if (i.spice) optStr += ` [Spice: ${i.spice}]`;
+                    if (i.addons && i.addons.length > 0) optStr += ` [Add-ons: ${i.addons.join(', ')}]`;
+                    return optStr;
+                }).join('%0A');
+
+                let whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
+                                  `-----------------------------------%0A` +
+                                  `Hello *${order.name}*! 👋%0A` +
+                                  `Your order (*${order.orderId}*) status has been updated to: *${order.status.toUpperCase()}* 🍔✨%0A%0A` +
+                                  `📦 *Details:*%0A` +
+                                  itemsWhatsAppText + `%0A` +
+                                  `-----------------------------------%0A` +
+                                  `💰 *Total:* ${order.total}%0A` +
+                                  `📍 *Deliver To:* ${order.address}%0A` +
+                                  `-----------------------------------%0A` +
+                                  `Thank you for Calling Fast Travel Restaurant! 🚀`;
+
+let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
+
+                return `
+                    <div class="bg-[#0f0f14] border ${sLower === 'idle' ? 'border-rose-500 shadow-rose-950/50 shadow-lg' : 'border-red-950'} rounded-3xl p-6 flex flex-col justify-between space-y-4 shadow-xl hover:border-red-600/50 transition">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start border-b border-red-950 pb-3">
+                                <div>
+                                    <span class="font-orbitron text-xs font-bold text-red-500">${order.orderId}</span>
+                                    <h3 class="font-orbitron text-base font-bold text-white mt-0.5">${order.name}</h3>
+                                </div>
+                                <span class="px-3 py-1 rounded-xl text-xs font-bold font-orbitron border ${statusColor}">${order.status}</span>
+                            </div>
+
+                            <div class="space-y-1.5 text-xs bg-[#12121a] p-3 rounded-2xl border border-red-950/60">
+                                <p class="text-slate-400 flex items-center space-x-1.5"><span>📞</span> <strong class="text-white">${order.phone}</strong></p>
+                                <p class="text-slate-400 flex items-center space-x-1.5"><span>📍</span> <span class="text-white">${order.address}</span></p>
+                                <p class="text-slate-400 flex items-center space-x-1.5"><span>💳</span> <span class="text-white">${order.payment}</span></p>
+                            </div>
+
+                            <div class="bg-[#050508] p-3 rounded-2xl border border-red-950/80 space-y-1">
+                                <p class="font-orbitron text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Quest Inventory Items:</p>
+                                ${itemsHtml}
+                            </div>
+
+                            <div class="flex justify-between items-center text-sm font-black pt-1 px-1">
+                                <span class="text-slate-400">Total Settlement:</span>
+                                <span class="font-orbitron text-amber-400 text-base">${order.total}</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-3 border-t border-red-950">
+                            <!-- Print Ticket Button for Xprinter XP-80 -->
+                            <button onclick="printOrderReceipt('${order.orderId}')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-center text-xs font-orbitron uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2 cursor-pointer">
+                                <span class="text-sm">🖨️</span>
+                                <span>Print Ticket</span>
+                            </button>
+
+                            <div class="grid grid-cols-2 gap-1.5 text-xs font-bold font-orbitron">
+                                <button onclick="updateOrderStatus('${order.orderId}', 'Preparing')" class="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition shadow-md shadow-blue-600/30 cursor-pointer">Preparing</button>
+                                <button onclick="updateOrderStatus('${order.orderId}', 'Dispatched')" class="py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition shadow-md shadow-purple-600/30 cursor-pointer">Dispatched</button>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-1.5 text-xs font-bold font-orbitron">
+                                <button onclick="updateOrderStatus('${order.orderId}', 'Delivered')" class="py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-md shadow-emerald-600/30 cursor-pointer">Delivered ⭐</button>
+                                <button onclick="cancelOrderPrompt('${order.orderId}')" class="py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition cursor-pointer">Cancel ❌</button>
+                            </div>
+
+                            <a href="${whatsappDesktopLink}" class="block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-center text-xs font-orbitron uppercase tracking-wider transition shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2 cursor-pointer">
+                                <span class="text-sm">💬</span>
+                                <span>CHAT WITH CUSTOMER</span>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Xprinter XP-80 Thermal Printer Formatting & Execution Function
+        function printOrderReceipt(orderId) {
+            const orders = window.currentOrdersCache || [];
+            const order = orders.find(o => o.orderId === orderId);
+            if (!order) {
+                alert("Order details not found for printing.");
+                return;
+            }
+
+            const printArea = document.getElementById('thermal-receipt-print-area');
+            
+            let itemsListHtml = (order.items || []).map(i => {
+                let subDetails = "";
+                if (i.side) subDetails += ` | Side: ${i.side}`;
+                if (i.flavor) subDetails += ` | Flavor: ${i.flavor}`;
+                if (i.broth) subDetails += ` | Broth: ${i.broth}`;
+                if (i.noodles) subDetails += ` | Noodles: ${i.noodles}`;
+                if (i.spice) subDetails += ` | Spice: ${i.spice}`;
+                if (i.addons && i.addons.length > 0) subDetails += ` | Add-ons: ${i.addons.join(', ')}`;
+                
+                let itemTotal = (parseFloat(i.price || 0) * parseInt(i.qty || 1));
+                
+                return `
+                    <div style="margin-bottom: 6px; font-size: 11px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>${i.qty}x</strong> ${i.name}</span>
+                            <span>${itemTotal} EGP</span>
+                        </div>
+                        ${subDetails ? `<div style="font-size: 10px; color: #333; margin-top: 2px;">${subDetails}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            let formattedDate = new Date(order.timestamp || Date.now()).toLocaleString();
+
+            printArea.innerHTML = `
+                <div style="text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 4px;">FAST TRAVEL RESTAURANT</div>
+                <div style="text-align: center; font-size: 10px; margin-bottom: 8px;">Fast Travel Delivery Dashboard</div>
+                <div style="border-bottom: 1px dashed black; margin-bottom: 6px;"></div>
+                
+                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Order ID:</strong> ${order.orderId}</div>
+                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Date:</strong> ${formattedDate}</div>
+                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Customer:</strong> ${order.name}</div>
+                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Phone:</strong> ${order.phone}</div>
+                <div style="font-size: 11px; margin-bottom: 6px;"><strong>Address:</strong> ${order.address}</div>
+                
+                <div style="border-bottom: 1px dashed black; margin-bottom: 6px;"></div>
+                <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px;">ITEMS LIST:</div>
+                ${itemsListHtml}
+                
+                <div style="border-bottom: 1px dashed black; margin-top: 6px; margin-bottom: 6px;"></div>
+                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
+                    <span>TOTAL SETTLEMENT:</span>
+                    <span>${order.total}</span>
+                </div>
+                <div style="font-size: 11px; margin-top: 4px;"><strong>Payment:</strong> ${order.payment}</div>
+                <div style="font-size: 11px; margin-top: 2px;"><strong>Status:</strong> ${order.status.toUpperCase()}</div>
+                
+                <div style="border-bottom: 1px dashed black; margin-top: 8px; margin-bottom: 8px;"></div>
+                <div style="text-align: center; font-size: 10px; font-style: italic;">Thank you for questing with us! 🚀</div>
+                <div style="text-align: center; font-size: 9px; margin-top: 4px;">XP-80 Direct Thermal Print</div>
+            `;
+
+            window.print();
+        }
+
+async function updateOrderStatus(orderId, newStatus) {
+            // 1. Instantly update LocalStorage and re-render UI for immediate snappy feedback
+            const raw = localStorage.getItem('fast_travel_orders');
+            let targetOrder = null;
+            if (raw) {
+                try {
+                    let orders = JSON.parse(raw);
+                    orders = orders.map(o => {
+                        if (o.orderId === orderId || o.OrderID === orderId) {
+                            o.status = newStatus;
+                            o.Status = newStatus;
+                            targetOrder = o;
+                        }
+                        return o;
+                    });
+                    localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
+                } catch(e) {}
+            }
+
+            // Immediately refresh the grid & metrics so there is zero UI lag
+            loadOrders();
+
+            // 2. Perform background cloud sync asynchronously without blocking the UI thread
+            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+                fetch(CONFIG.API_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
+                }).catch(e => console.error("Background sync error:", e));
+            }
+
+            // 3. Trigger WhatsApp app pop-up smoothly via a deferred timeout anchor click to preserve normal behavior
+            const autoWhatsApp = document.getElementById('auto-whatsapp-toggle').checked;
+            if (autoWhatsApp && newStatus.toLowerCase() !== 'delivered') {
+                if (!targetOrder) {
+                    const orders = window.currentOrdersCache || [];
+                    targetOrder = orders.find(o => o.orderId === orderId);
+                }
+                
+                if (targetOrder) {
+                    let cleanPhone = String(targetOrder.phone || '').trim();
+                    if (cleanPhone.startsWith('0')) {
+                        cleanPhone = '2' + cleanPhone;
+                    } else if (!cleanPhone.startsWith('2') && cleanPhone.length === 10) {
+                        cleanPhone = '20' + cleanPhone;
+                    }
+                    
+                    let whatsappMsg = "";
+                    if (newStatus.toLowerCase() === 'dispatched') {
+                        whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
+                                      `-----------------------------------%0A` +
+                                      `Hello *${targetOrder.name}*! 👋%0A` +
+                                      `Your order (*${targetOrder.orderId}*) has been dispatched and is on its way to you! 🛵💨%0A` +
+                                      `-----------------------------------%0A` +
+                                      `Thank you for Calling Fast Travel Restaurant! 🚀`;
+                    } else {
+                        let itemsWhatsAppText = (targetOrder.items || []).map(i => {
+                            let optStr = `• ${i.name} (x${i.qty})`;
+                            if (i.side) optStr += ` [Side: ${i.side}]`;
+                            if (i.flavor) optStr += ` [Flavor: ${i.flavor}]`;
+                            if (i.broth) optStr += ` [Broth: ${i.broth}]`;
+                            if (i.noodles) optStr += ` [Noodles: ${i.noodles}]`;
+                            if (i.spice) optStr += ` [Spice: ${i.spice}]`;
+                            if (i.addons && i.addons.length > 0) optStr += ` [Add-ons: ${i.addons.join(', ')}]`;
+                            return optStr;
+                        }).join('%0A');
+
+                        whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
+                                      `-----------------------------------%0A` +
+                                      `Hello *${targetOrder.name}*! 👋%0A` +
+                                      `Your order (*${targetOrder.orderId}*) is now *${newStatus.toUpperCase()}*! 🍔✨%0A%0A` +
+                                      `📦 *Details:*%0A` +
+                                      itemsWhatsAppText + `%0A` +
+                                      `-----------------------------------%0A` +
+                                      `💰 *Total:* ${targetOrder.total}%0A` +
+                                      `📍 *Deliver To:* ${targetOrder.address}%0A` +
+                                      `-----------------------------------%0A` +
+                                      `Thank you for Calling Fast Travel Restaurant! 🚀`;
+                    }
+
+                    setTimeout(() => {
+                        const link = document.createElement('a');
+                        link.href = `whatsapp://send?phone=${cleanPhone}&text=${whatsappMsg}`;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }, 50);
+                }
+            }
+        }
+
+        async function cancelOrderPrompt(orderId) {
+            const reason = prompt("Please enter the reason for cancellation:");
+            if (reason === null) return; 
+            
+            const cancelStatus = reason.trim() ? `Cancelled: ${reason.trim()}` : "Cancelled";
+
+            const raw = localStorage.getItem('fast_travel_orders');
+            if (raw) {
+                let orders = JSON.parse(raw);
+                orders = orders.map(o => {
+                    if (o.orderId === orderId || o.OrderID === orderId) {
+                        o.status = cancelStatus;
+                        o.Status = cancelStatus;
+                    }
+                    return o.orderId === orderId || o.OrderID === orderId;
+                });
+                localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
+            }
+
+            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+                try {
+                    await fetch(CONFIG.API_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ action: "updateOrderStatus", orderId: orderId, status: cancelStatus })
+                    });
+                } catch (e) {
+                    console.error("Failed to sync cancellation with sheet", e);
+                }
+            }
+
+            loadOrders();
+        }
+
+        function manualRefreshOrders() {
+            const dot = document.getElementById('sync-status-dot');
+            dot.classList.remove('bg-emerald-500');
+            dot.classList.add('bg-amber-400', 'animate-ping');
+            setTimeout(() => {
+                dot.classList.remove('animate-ping');
+                dot.classList.add('bg-emerald-500');
+            }, 600);
+            loadOrders();
+        }
+    </script>
+</body>
+</html>
