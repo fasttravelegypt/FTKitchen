@@ -217,7 +217,6 @@
         let previousOrderCount = 0;
         let activeStatusFilter = 'All';
         let audioUnlocked = false;
-        let isSyncingCloud = false;
 
         // Unlock audio context on any user interaction
         function unlockAudio() {
@@ -241,13 +240,7 @@
         });
 
 async function loadOrders() {
-            if (isSyncingCloud) return; // <--- ADD: Skip poll if an action/sync is running
-
             let orders = [];
-            const rawLocal = localStorage.getItem('fast_travel_orders');
-            if (rawLocal) {
-                try { orders = JSON.parse(rawLocal); } catch(e) {}
-            }
 
             if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
                 try {
@@ -330,72 +323,16 @@ async function loadOrders() {
                                 timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
                             };
                         });
-                        
-                        // <--- ADD: Only update local storage if data is valid to prevent empty flashes
-                        localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
                     }
-                } catch(err) {}
+                } catch(err) {
+                    console.error("Failed to fetch cloud orders:", err);
+                }
             }
 
             orders = orders.map(o => {
                 if (!o.status || o.status === '' || o.status === 'Received') {
                     o.status = o.status === 'Received' ? 'Preparing' : 'Idle';
                 }
-                
-                if (o.items && Array.isArray(o.items)) {
-                    o.items = o.items.map(i => {
-                        if (typeof i === 'string') {
-                            let priceMatch = i.match(/\[Price:\s*([\d.]+)\s*EGP\]/i);
-                            let itemPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
-                            
-                            let sideMatch = i.match(/\[Side:\s*([^\]]+)\]/i);
-                            let sidesMatch = i.match(/\[Sides:\s*([^\]]+)\]/i);
-                            let flavorMatch = i.match(/\[Flavor:\s*([^\]]+)\]/i);
-                            let flavorsMatch = i.match(/\[Flavors:\s*([^\]]+)\]/i);
-                            let brothMatch = i.match(/\[Broth:\s*([^\]]+)\]/i);
-                            let noodlesMatch = i.match(/\[Noodles:\s*([^\]]+)\]/i);
-                            let spiceMatch = i.match(/\[Spice:\s*([^\]]+)\]/i);
-                            let addonsMatch = i.match(/\[Add-ons:\s*([^\]]+)\]/i);
-
-                            let cleanName = i.replace(/\[Price:\s*[\d.]+\s*EGP\]/gi, '')
-                                             .replace(/\[Side:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Sides:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Flavor:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Flavors:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Broth:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Noodles:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Spice:\s*[^\]]+\]/gi, '')
-                                             .replace(/\[Add-ons:\s*[^\]]+\]/gi, '')
-                                             .trim();
-
-                            let qtyMatch = cleanName.match(/^(\d+)x\s*(.*)$/);
-                            return {
-                                qty: qtyMatch ? parseInt(qtyMatch[1]) : 1,
-                                name: qtyMatch ? qtyMatch[2] : cleanName,
-                                price: itemPrice,
-                                side: sideMatch ? sideMatch[1] : (sidesMatch ? sidesMatch[1] : null),
-                                flavor: flavorMatch ? flavorMatch[1] : (flavorsMatch ? flavorsMatch[1] : null),
-                                broth: brothMatch ? brothMatch[1] : null,
-                                noodles: noodlesMatch ? noodlesMatch[1] : null,
-                                spice: spiceMatch ? spiceMatch[1] : null,
-                                addons: addonsMatch ? addonsMatch[1].split(', ').map(s => s.trim()) : []
-                            };
-                        } else {
-                            return {
-                                qty: i.qty || i.Quantity || 1,
-                                name: i.name || i.Name || 'Item',
-                                price: i.price || i.Price || 0,
-                                side: i.selectedSide || i.side || i.Side || null,
-                                flavor: i.selectedFlavor || i.flavor || i.Flavor || null,
-                                broth: i.broth || i.Broth || null,
-                                noodles: i.noodles || i.Noodles || null,
-                                spice: i.spice || i.Spice || null,
-                                addons: i.addons || i.Addons || []
-                            };
-                        }
-                    });
-                }
-                
                 return o;
             });
 
@@ -695,32 +632,7 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
         }
 
 async function updateOrderStatus(orderId, newStatus) {
-            isSyncingCloud = true; // <--- ADD: Lock background polling
-
-            // 1. Instantly update LocalStorage and re-render UI for immediate snappy feedback
-            const raw = localStorage.getItem('fast_travel_orders');
-            let targetOrder = null;
-            if (raw) {
-                try {
-                    let orders = JSON.parse(raw);
-                    orders = orders.map(o => {
-                        if (o.orderId === orderId || o.OrderID === orderId) {
-                            o.status = newStatus;
-                            o.Status = newStatus;
-                            targetOrder = o;
-                        }
-                        return o;
-                    });
-                    localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
-                    window.currentOrdersCache = orders; // <--- ADD: Immediately update cache
-                } catch(e) {}
-            }
-
-            // Immediately refresh the grid & metrics so there is zero UI lag
-            updateMetrics(window.currentOrdersCache); // <--- UPDATED
-            filterAndRenderOrders();
-
-            // 2. Perform background cloud sync asynchronously without blocking the UI thread
+            // 1. Send update directly to the cloud backend database
             if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
                 try {
                     await fetch(CONFIG.API_URL, {
@@ -728,19 +640,18 @@ async function updateOrderStatus(orderId, newStatus) {
                         body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
                     });
                 } catch(e) {
-                    console.error("Background sync error:", e);
+                    console.error("Cloud update error:", e);
                 }
             }
 
-            isSyncingCloud = false; // <--- ADD: Release lock
+            // 2. Immediately pull fresh state from database
+            await loadOrders();
 
-            // 3. Trigger WhatsApp app pop-up smoothly via a deferred timeout anchor click to preserve normal behavior
+            // 3. Trigger WhatsApp app pop-up smoothly if enabled
             const autoWhatsApp = document.getElementById('auto-whatsapp-toggle').checked;
             if (autoWhatsApp && newStatus.toLowerCase() !== 'delivered') {
-                if (!targetOrder) {
-                    const orders = window.currentOrdersCache || [];
-                    targetOrder = orders.find(o => o.orderId === orderId);
-                }
+                const orders = window.currentOrdersCache || [];
+                let targetOrder = orders.find(o => o.orderId === orderId);
                 
                 if (targetOrder) {
                     let cleanPhone = String(targetOrder.phone || '').trim();
@@ -795,24 +706,11 @@ async function updateOrderStatus(orderId, newStatus) {
             }
         }
 
-        async function cancelOrderPrompt(orderId) {
+async function cancelOrderPrompt(orderId) {
             const reason = prompt("Please enter the reason for cancellation:");
             if (reason === null) return; 
             
             const cancelStatus = reason.trim() ? `Cancelled: ${reason.trim()}` : "Cancelled";
-
-            const raw = localStorage.getItem('fast_travel_orders');
-            if (raw) {
-                let orders = JSON.parse(raw);
-                orders = orders.map(o => {
-                    if (o.orderId === orderId || o.OrderID === orderId) {
-                        o.status = cancelStatus;
-                        o.Status = cancelStatus;
-                    }
-                    return o.orderId === orderId || o.OrderID === orderId;
-                });
-                localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
-            }
 
             if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
                 try {
@@ -821,11 +719,11 @@ async function updateOrderStatus(orderId, newStatus) {
                         body: JSON.stringify({ action: "updateOrderStatus", orderId: orderId, status: cancelStatus })
                     });
                 } catch (e) {
-                    console.error("Failed to sync cancellation with sheet", e);
+                    console.error("Failed to sync cancellation with database", e);
                 }
             }
 
-            loadOrders();
+            await loadOrders();
         }
 
         function manualRefreshOrders() {
