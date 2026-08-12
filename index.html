@@ -217,6 +217,7 @@
         let previousOrderCount = 0;
         let activeStatusFilter = 'All';
         let audioUnlocked = false;
+        let isSyncingCloud = false;
 
         // Unlock audio context on any user interaction
         function unlockAudio() {
@@ -239,7 +240,9 @@
             setInterval(loadOrders, 2000);
         });
 
-        async function loadOrders() {
+async function loadOrders() {
+            if (isSyncingCloud) return; // <--- ADD: Skip poll if an action/sync is running
+
             let orders = [];
             const rawLocal = localStorage.getItem('fast_travel_orders');
             if (rawLocal) {
@@ -327,6 +330,9 @@
                                 timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
                             };
                         });
+                        
+                        // <--- ADD: Only update local storage if data is valid to prevent empty flashes
+                        localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
                     }
                 } catch(err) {}
             }
@@ -689,6 +695,8 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
         }
 
 async function updateOrderStatus(orderId, newStatus) {
+            isSyncingCloud = true; // <--- ADD: Lock background polling
+
             // 1. Instantly update LocalStorage and re-render UI for immediate snappy feedback
             const raw = localStorage.getItem('fast_travel_orders');
             let targetOrder = null;
@@ -704,19 +712,27 @@ async function updateOrderStatus(orderId, newStatus) {
                         return o;
                     });
                     localStorage.setItem('fast_travel_orders', JSON.stringify(orders));
+                    window.currentOrdersCache = orders; // <--- ADD: Immediately update cache
                 } catch(e) {}
             }
 
             // Immediately refresh the grid & metrics so there is zero UI lag
-            loadOrders();
+            updateMetrics(window.currentOrdersCache); // <--- UPDATED
+            filterAndRenderOrders();
 
             // 2. Perform background cloud sync asynchronously without blocking the UI thread
             if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
-                fetch(CONFIG.API_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
-                }).catch(e => console.error("Background sync error:", e));
+                try {
+                    await fetch(CONFIG.API_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
+                    });
+                } catch(e) {
+                    console.error("Background sync error:", e);
+                }
             }
+
+            isSyncingCloud = false; // <--- ADD: Release lock
 
             // 3. Trigger WhatsApp app pop-up smoothly via a deferred timeout anchor click to preserve normal behavior
             const autoWhatsApp = document.getElementById('auto-whatsapp-toggle').checked;
