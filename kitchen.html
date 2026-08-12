@@ -160,6 +160,60 @@
     <!-- App Configuration & Automation Script -->
     <script src="config.js"></script>
     <script>
+// Password Protection Check with Refresh & Max Attempt Lock
+        (function() {
+            // We use sessionStorage with a session flag so that refreshing (F5) 
+            // clears the session state and forces the password prompt again.
+            let isAuthenticated = sessionStorage.getItem('kitchen_authenticated');
+            
+            if (isAuthenticated === 'true') {
+                return; // Already authenticated for this active session load
+            }
+
+            const maxAttempts = 3;
+            let attemptsLeft = maxAttempts;
+            let accessGranted = false;
+
+            while (attemptsLeft > 0) {
+                let input = prompt(`🔒 Restricted Access: Enter Kitchen Password (${attemptsLeft} attempt(s) remaining):`);
+                
+                if (input === null) {
+                    // User clicked cancel
+                    document.body.innerHTML = `
+                        <div style="background:#050508; color:#fff; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Rajdhani',sans-serif; text-align:center; padding:20px;">
+                            <h1 style="color:#ef4444; font-family:'Orbitron',sans-serif; font-size:24px; margin-bottom:10px;">ACCESS TERMINATED</h1>
+                            <p style="color:#94a3b8; font-size:14px;">Authentication cancelled. Page access is blocked.</p>
+                        </div>
+                    `;
+                    throw new Error("Access cancelled by user.");
+                }
+
+                let targetPassword = (typeof CONFIG !== 'undefined' && CONFIG.KITCHEN_PASSWORD) ? CONFIG.KITCHEN_PASSWORD : "11223344";
+
+                if (input === targetPassword) {
+                    accessGranted = true;
+                    sessionStorage.setItem('kitchen_authenticated', 'true');
+                    break;
+                } else {
+                    attemptsLeft--;
+                    if (attemptsLeft > 0) {
+                        alert(`Incorrect password. Please try again.`);
+                    }
+                }
+            }
+
+            if (!accessGranted) {
+                // Lock the page completely and clear the body content so Menu.html is never opened
+                document.body.innerHTML = `
+                    <div style="background:#050508; color:#fff; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Rajdhani',sans-serif; text-align:center; padding:20px;">
+                        <h1 style="color:#ef4444; font-family:'Orbitron',sans-serif; font-size:28px; margin-bottom:10px;">🚨 ACCESS LOCKED 🚨</h1>
+                        <p style="color:#94a3b8; font-size:16px; max-width:400px;">Maximum failed attempts reached. This command center is securely locked down.</p>
+                    </div>
+                `;
+                throw new Error("Maximum password attempts exceeded. Page locked.");
+            }
+        })();
+
         let previousOrderCount = 0;
         let activeStatusFilter = 'All';
         let audioUnlocked = false;
