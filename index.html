@@ -234,129 +234,123 @@
             if (!audioUnlocked) unlockAudio();
         }, { once: true });
 
-        window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', () => {
             loadOrders();
-            setInterval(loadOrders, 2000);
+            // Increased to 15 seconds to prevent DDoS-ing the database and reduce lag
+            setInterval(loadOrders, 15000); 
         });
 
 async function loadOrders() {
-            let orders = [];
+    let orders = [];
 
-            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
-                try {
-                    let res = await fetch(CONFIG.API_URL + "?action=getOrders");
-                    let cloudOrders = await res.json();
-                    if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
-                        orders = cloudOrders.map(o => {
-                            let existingStatus = o.Status || o.status;
-                            if (!existingStatus || existingStatus === 'Received') {
-                                existingStatus = existingStatus === 'Received' ? 'Preparing' : 'Idle';
-                            }
-                            
-                            let rawItems = o.Items || o.items || '[]';
-                            if (typeof rawItems === 'string') {
-                                try { rawItems = JSON.parse(rawItems); } catch(e) { rawItems = []; }
-                            }
-                            
-                            let parsedItems = rawItems.map(i => {
-                                if (typeof i === 'string') {
-                                    let priceMatch = i.match(/\[Price:\s*([\d.]+)\s*EGP\]/i);
-                                    let itemPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
-                                    
-                                    let sideMatch = i.match(/\[Side:\s*([^\]]+)\]/i);
-                                    let sidesMatch = i.match(/\[Sides:\s*([^\]]+)\]/i);
-                                    let flavorMatch = i.match(/\[Flavor:\s*([^\]]+)\]/i);
-                                    let flavorsMatch = i.match(/\[Flavors:\s*([^\]]+)\]/i);
-                                    let brothMatch = i.match(/\[Broth:\s*([^\]]+)\]/i);
-                                    let noodlesMatch = i.match(/\[Noodles:\s*([^\]]+)\]/i);
-                                    let spiceMatch = i.match(/\[Spice:\s*([^\]]+)\]/i);
-                                    let addonsMatch = i.match(/\[Add-ons:\s*([^\]]+)\]/i);
-
-                                    let cleanName = i.replace(/\[Price:\s*[\d.]+\s*EGP\]/gi, '')
-                                                     .replace(/\[Side:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Sides:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Flavor:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Flavors:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Broth:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Noodles:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Spice:\s*[^\]]+\]/gi, '')
-                                                     .replace(/\[Add-ons:\s*[^\]]+\]/gi, '')
-                                                     .trim();
-
-                                    let qtyMatch = cleanName.match(/^(\d+)x\s*(.*)$/);
-                                    
-                                    return {
-                                        qty: qtyMatch ? parseInt(qtyMatch[1]) : 1,
-                                        name: qtyMatch ? qtyMatch[2] : cleanName,
-                                        price: itemPrice,
-                                        side: sideMatch ? sideMatch[1] : (sidesMatch ? sidesMatch[1] : null),
-                                        flavor: flavorMatch ? flavorMatch[1] : (flavorsMatch ? flavorsMatch[1] : null),
-                                        broth: brothMatch ? brothMatch[1] : null,
-                                        noodles: noodlesMatch ? noodlesMatch[1] : null,
-                                        spice: spiceMatch ? spiceMatch[1] : null,
-                                        addons: addonsMatch ? addonsMatch[1].split(', ').map(s => s.trim()) : []
-                                    };
-                                } else {
-                                    return {
-                                        qty: i.qty || i.Quantity || 1,
-                                        name: i.name || i.Name || 'Item',
-                                        price: i.price || i.Price || 0,
-                                        side: i.selectedSide || i.side || i.Side || null,
-                                        flavor: i.selectedFlavor || i.flavor || i.Flavor || null,
-                                        broth: i.broth || i.Broth || null,
-                                        noodles: i.noodles || i.Noodles || null,
-                                        spice: i.spice || i.Spice || null,
-                                        addons: i.addons || i.Addons || []
-                                    };
-                                }
-                            });
-
-                            return {
-                                orderId: o.OrderID || o.orderId,
-                                name: o.CustomerName || o.name,
-                                phone: o.CustomerPhone || o.phone,
-                                address: o.Address || o.address || `${o.City || ''}, ${o.District || ''}`,
-                                payment: o.Payment || o.payment || 'Cash on Delivery',
-                                items: parsedItems,
-                                total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
-                                status: existingStatus,
-                                timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
-                            };
-                        });
+    if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+        try {
+            let res = await fetch(CONFIG.API_URL + "?action=getOrders");
+            let cloudOrders = await res.json();
+            if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+                orders = cloudOrders.map(o => {
+                    // FIX: Rely entirely on the database status. Removed the forced frontend overrides.
+                    let existingStatus = o.Status || o.status || 'Idle';
+                    
+                    let rawItems = o.Items || o.items || '[]';
+                    if (typeof rawItems === 'string') {
+                        try { rawItems = JSON.parse(rawItems); } catch(e) { rawItems = []; }
                     }
-                } catch(err) {
-                    console.error("Failed to fetch cloud orders:", err);
-                }
+                    
+                    let parsedItems = rawItems.map(i => {
+                        if (typeof i === 'string') {
+                            let priceMatch = i.match(/\[Price:\s*([\d.]+)\s*EGP\]/i);
+                            let itemPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                            
+                            let sideMatch = i.match(/\[Side:\s*([^\]]+)\]/i);
+                            let sidesMatch = i.match(/\[Sides:\s*([^\]]+)\]/i);
+                            let flavorMatch = i.match(/\[Flavor:\s*([^\]]+)\]/i);
+                            let flavorsMatch = i.match(/\[Flavors:\s*([^\]]+)\]/i);
+                            let brothMatch = i.match(/\[Broth:\s*([^\]]+)\]/i);
+                            let noodlesMatch = i.match(/\[Noodles:\s*([^\]]+)\]/i);
+                            let spiceMatch = i.match(/\[Spice:\s*([^\]]+)\]/i);
+                            let addonsMatch = i.match(/\[Add-ons:\s*([^\]]+)\]/i);
+
+                            let cleanName = i.replace(/\[Price:\s*[\d.]+\s*EGP\]/gi, '')
+                                             .replace(/\[Side:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Sides:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Flavor:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Flavors:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Broth:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Noodles:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Spice:\s*[^\]]+\]/gi, '')
+                                             .replace(/\[Add-ons:\s*[^\]]+\]/gi, '')
+                                             .trim();
+
+                            let qtyMatch = cleanName.match(/^(\d+)x\s*(.*)$/);
+                            
+                            return {
+                                qty: qtyMatch ? parseInt(qtyMatch[1]) : 1,
+                                name: qtyMatch ? qtyMatch[2] : cleanName,
+                                price: itemPrice,
+                                side: sideMatch ? sideMatch[1] : (sidesMatch ? sidesMatch[1] : null),
+                                flavor: flavorMatch ? flavorMatch[1] : (flavorsMatch ? flavorsMatch[1] : null),
+                                broth: brothMatch ? brothMatch[1] : null,
+                                noodles: noodlesMatch ? noodlesMatch[1] : null,
+                                spice: spiceMatch ? spiceMatch[1] : null,
+                                addons: addonsMatch ? addonsMatch[1].split(', ').map(s => s.trim()) : []
+                            };
+                        } else {
+                            return {
+                                qty: i.qty || i.Quantity || 1,
+                                name: i.name || i.Name || 'Item',
+                                price: i.price || i.Price || 0,
+                                side: i.selectedSide || i.side || i.Side || null,
+                                flavor: i.selectedFlavor || i.flavor || i.Flavor || null,
+                                broth: i.broth || i.Broth || null,
+                                noodles: i.noodles || i.Noodles || null,
+                                spice: i.spice || i.Spice || null,
+                                addons: i.addons || i.Addons || []
+                            };
+                        }
+                    });
+
+                    return {
+                        orderId: o.OrderID || o.orderId,
+                        name: o.CustomerName || o.name,
+                        phone: o.CustomerPhone || o.phone,
+                        address: o.Address || o.address || `${o.City || ''}, ${o.District || ''}`,
+                        payment: o.Payment || o.payment || 'Cash on Delivery',
+                        items: parsedItems,
+                        total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
+                        status: existingStatus,
+                        timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
+                    };
+                });
             }
-
-            orders = orders.map(o => {
-                if (!o.status || o.status === '' || o.status === 'Received') {
-                    o.status = o.status === 'Received' ? 'Preparing' : 'Idle';
-                }
-                return o;
-            });
-
-            const hasIdleOrders = orders.some(o => (o.status || '').toLowerCase() === 'idle');
-            
-            if (orders.length > previousOrderCount && previousOrderCount !== 0) {
-                playLoudAlarm();
-            } else if (hasIdleOrders) {
-                const alarm = document.getElementById('alarm-sound');
-                if (alarm.paused && audioUnlocked) {
-                    alarm.play().catch(err => console.log("Alarm loop waiting for interaction"));
-                }
-            }
-
-            if (!hasIdleOrders) {
-                stopLoudAlarm();
-            }
-
-            previousOrderCount = orders.length;
-
-            window.currentOrdersCache = orders;
-            updateMetrics(orders);
-            filterAndRenderOrders();
+        } catch(err) {
+            console.error("Failed to fetch cloud orders:", err);
         }
+    }
+
+    // FIX: Removed the second redundant `.map` loop that forced status overrides.
+
+    const hasIdleOrders = orders.some(o => (o.status || '').toLowerCase() === 'idle');
+    
+    if (orders.length > previousOrderCount && previousOrderCount !== 0) {
+        playLoudAlarm();
+    } else if (hasIdleOrders) {
+        const alarm = document.getElementById('alarm-sound');
+        if (alarm.paused && audioUnlocked) {
+            alarm.play().catch(err => console.log("Alarm loop waiting for interaction"));
+        }
+    }
+
+    if (!hasIdleOrders) {
+        stopLoudAlarm();
+    }
+
+    previousOrderCount = orders.length;
+    window.currentOrdersCache = orders;
+    
+    updateMetrics(orders);
+    filterAndRenderOrders();
+}
 
         function playLoudAlarm() {
             const alarm = document.getElementById('alarm-sound');
@@ -632,79 +626,91 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
         }
 
 async function updateOrderStatus(orderId, newStatus) {
-            // 1. Send update directly to the cloud backend database
-            if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
-                try {
-                    await fetch(CONFIG.API_URL, {
-                        method: "POST",
-                        body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
-                    });
-                } catch(e) {
-                    console.error("Cloud update error:", e);
-                }
+    // FIX: Optimistic UI Update. Change the UI instantly to stop flickering.
+    const orders = window.currentOrdersCache || [];
+    let targetOrder = orders.find(o => o.orderId === orderId);
+    
+    if (targetOrder) {
+        targetOrder.status = newStatus;
+        updateMetrics(orders);
+        filterAndRenderOrders();
+    }
+
+    // 1. Send update directly to the cloud backend database
+    if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+        try {
+            // FIX: Wait for the database to actually confirm the save
+            const response = await fetch(CONFIG.API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "updateOrderStatus", orderId, status: newStatus })
+            });
+            
+            if (!response.ok) {
+                console.error("Server responded with an error.");
             }
-
-            // 2. Immediately pull fresh state from database
-            await loadOrders();
-
-            // 3. Trigger WhatsApp app pop-up smoothly if enabled
-            const autoWhatsApp = document.getElementById('auto-whatsapp-toggle').checked;
-            if (autoWhatsApp && newStatus.toLowerCase() !== 'delivered') {
-                const orders = window.currentOrdersCache || [];
-                let targetOrder = orders.find(o => o.orderId === orderId);
-                
-                if (targetOrder) {
-                    let cleanPhone = String(targetOrder.phone || '').trim();
-                    if (cleanPhone.startsWith('0')) {
-                        cleanPhone = '2' + cleanPhone;
-                    } else if (!cleanPhone.startsWith('2') && cleanPhone.length === 10) {
-                        cleanPhone = '20' + cleanPhone;
-                    }
-                    
-                    let whatsappMsg = "";
-                    if (newStatus.toLowerCase() === 'dispatched') {
-                        whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
-                                      `-----------------------------------%0A` +
-                                      `Hello *${targetOrder.name}*! 👋%0A` +
-                                      `Your order (*${targetOrder.orderId}*) has been dispatched and is on its way to you! 🛵💨%0A` +
-                                      `-----------------------------------%0A` +
-                                      `Thank you for Calling Fast Travel Restaurant! 🚀`;
-                    } else {
-                        let itemsWhatsAppText = (targetOrder.items || []).map(i => {
-                            let optStr = `• ${i.name} (x${i.qty})`;
-                            if (i.side) optStr += ` [Side: ${i.side}]`;
-                            if (i.flavor) optStr += ` [Flavor: ${i.flavor}]`;
-                            if (i.broth) optStr += ` [Broth: ${i.broth}]`;
-                            if (i.noodles) optStr += ` [Noodles: ${i.noodles}]`;
-                            if (i.spice) optStr += ` [Spice: ${i.spice}]`;
-                            if (i.addons && i.addons.length > 0) optStr += ` [Add-ons: ${i.addons.join(', ')}]`;
-                            return optStr;
-                        }).join('%0A');
-
-                        whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
-                                      `-----------------------------------%0A` +
-                                      `Hello *${targetOrder.name}*! 👋%0A` +
-                                      `Your order (*${targetOrder.orderId}*) is now *${newStatus.toUpperCase()}*! 🍔✨%0A%0A` +
-                                      `📦 *Details:*%0A` +
-                                      itemsWhatsAppText + `%0A` +
-                                      `-----------------------------------%0A` +
-                                      `💰 *Total:* ${targetOrder.total}%0A` +
-                                      `📍 *Deliver To:* ${targetOrder.address}%0A` +
-                                      `-----------------------------------%0A` +
-                                      `Thank you for Calling Fast Travel Restaurant! 🚀`;
-                    }
-
-                    setTimeout(() => {
-                        const link = document.createElement('a');
-                        link.href = `whatsapp://send?phone=${cleanPhone}&text=${whatsappMsg}`;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }, 50);
-                }
-            }
+        } catch(e) {
+            console.error("Cloud update error:", e);
         }
+    }
+
+    // 2. Fetch fresh state from database ONLY AFTER the write is confirmed
+    await loadOrders();
+
+    // 3. Trigger WhatsApp app pop-up smoothly if enabled
+    const autoWhatsApp = document.getElementById('auto-whatsapp-toggle').checked;
+    if (autoWhatsApp && newStatus.toLowerCase() !== 'delivered') {
+        if (targetOrder) {
+            let cleanPhone = String(targetOrder.phone || '').trim();
+            if (cleanPhone.startsWith('0')) {
+                cleanPhone = '2' + cleanPhone;
+            } else if (!cleanPhone.startsWith('2') && cleanPhone.length === 10) {
+                cleanPhone = '20' + cleanPhone;
+            }
+            
+            let whatsappMsg = "";
+            if (newStatus.toLowerCase() === 'dispatched') {
+                whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
+                              `-----------------------------------%0A` +
+                              `Hello *${targetOrder.name}*! 👋%0A` +
+                              `Your order (*${targetOrder.orderId}*) has been dispatched and is on its way to you! 🛵💨%0A` +
+                              `-----------------------------------%0A` +
+                              `Thank you for Calling Fast Travel Restaurant! 🚀`;
+            } else {
+                let itemsWhatsAppText = (targetOrder.items || []).map(i => {
+                    let optStr = `• ${i.name} (x${i.qty})`;
+                    if (i.side) optStr += ` [Side: ${i.side}]`;
+                    if (i.flavor) optStr += ` [Flavor: ${i.flavor}]`;
+                    if (i.broth) optStr += ` [Broth: ${i.broth}]`;
+                    if (i.noodles) optStr += ` [Noodles: ${i.noodles}]`;
+                    if (i.spice) optStr += ` [Spice: ${i.spice}]`;
+                    if (i.addons && i.addons.length > 0) optStr += ` [Add-ons: ${i.addons.join(', ')}]`;
+                    return optStr;
+                }).join('%0A');
+
+                whatsappMsg = `🎮 *Fast Travel Restaurant - Order Update*%0A` +
+                              `-----------------------------------%0A` +
+                              `Hello *${targetOrder.name}*! 👋%0A` +
+                              `Your order (*${targetOrder.orderId}*) is now *${newStatus.toUpperCase()}*! 🍔✨%0A%0A` +
+                              `📦 *Details:*%0A` +
+                              itemsWhatsAppText + `%0A` +
+                              `-----------------------------------%0A` +
+                              `💰 *Total:* ${targetOrder.total}%0A` +
+                              `📍 *Deliver To:* ${targetOrder.address}%0A` +
+                              `-----------------------------------%0A` +
+                              `Thank you for Calling Fast Travel Restaurant! 🚀`;
+            }
+
+            setTimeout(() => {
+                const link = document.createElement('a');
+                link.href = `whatsapp://send?phone=${cleanPhone}&text=${whatsappMsg}`;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }, 50);
+        }
+    }
+}
 
 async function cancelOrderPrompt(orderId) {
             const reason = prompt("Please enter the reason for cancellation:");
