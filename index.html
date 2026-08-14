@@ -10,8 +10,18 @@
         body { font-family: 'Rajdhani', sans-serif; }
         .font-orbitron { font-family: 'Orbitron', sans-serif; }
 
-        /* Thermal Printer Receipt Styles (Optimized for 80mm Xprinter XP-80) */
+/* Thermal Printer Receipt Styles (Optimized for 80mm Xprinter XP-80) */
         @media print {
+            /* NEW: Strip dark mode backgrounds and screen-heights for the printer */
+            html, body {
+                background: white !important;
+                background-color: white !important;
+                min-height: 0 !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
             body * {
                 visibility: hidden !important;
                 display: none !important;
