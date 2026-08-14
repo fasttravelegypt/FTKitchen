@@ -319,7 +319,8 @@ async function loadOrders() {
                         items: parsedItems,
                         total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
                         status: existingStatus,
-                        timestamp: o.Timestamp || o.timestamp || new Date().toISOString()
+                        timestamp: o.Timestamp || o.timestamp || new Date().toISOString(),
+			notes: o.Notes || o.notes || '' // <--- ADD THIS LINE
                     };
                 });
             }
@@ -515,11 +516,12 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
                                 <span class="px-3 py-1 rounded-xl text-xs font-bold font-orbitron border ${statusColor}">${order.status}</span>
                             </div>
 
-                            <div class="space-y-1.5 text-xs bg-[#12121a] p-3 rounded-2xl border border-red-950/60">
-                                <p class="text-slate-400 flex items-center space-x-1.5"><span>📞</span> <strong class="text-white">${order.phone}</strong></p>
-                                <p class="text-slate-400 flex items-center space-x-1.5"><span>📍</span> <span class="text-white">${order.address}</span></p>
-                                <p class="text-slate-400 flex items-center space-x-1.5"><span>💳</span> <span class="text-white">${order.payment}</span></p>
-                            </div>
+<div class="space-y-1.5 text-xs bg-[#12121a] p-3 rounded-2xl border border-red-950/60">
+    <p class="text-slate-400 flex items-center space-x-1.5"><span>📞</span> <strong class="text-white">${order.phone}</strong></p>
+    <p class="text-slate-400 flex items-center space-x-1.5"><span>📍</span> <span class="text-white">${order.address}</span></p>
+    <p class="text-slate-400 flex items-center space-x-1.5"><span>💳</span> <span class="text-white">${order.payment}</span></p>
+    ${order.notes ? `<p class="text-amber-400 font-bold flex items-start space-x-1.5 pt-1 border-t border-red-950/60"><span>📝</span> <span>Note: ${order.notes}</span></p>` : ''}
+</div>
 
                             <div class="bg-[#050508] p-3 rounded-2xl border border-red-950/80 space-y-1">
                                 <p class="font-orbitron text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Quest Inventory Items:</p>
@@ -601,9 +603,11 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
                 
                 <div style="font-size: 11px; margin-bottom: 2px;"><strong>Order ID:</strong> ${order.orderId}</div>
                 <div style="font-size: 11px; margin-bottom: 2px;"><strong>Date:</strong> ${formattedDate}</div>
-                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Customer:</strong> ${order.name}</div>
-                <div style="font-size: 11px; margin-bottom: 2px;"><strong>Phone:</strong> ${order.phone}</div>
-                <div style="font-size: 11px; margin-bottom: 6px;"><strong>Address:</strong> ${order.address}</div>
+<div style="font-size: 11px; margin-bottom: 2px;"><strong>Customer:</strong> ${order.name}</div>
+<div style="font-size: 11px; margin-bottom: 2px;"><strong>Phone:</strong> ${order.phone}</div>
+<div style="font-size: 11px; margin-bottom: 2px;"><strong>Address:</strong> ${order.address}</div>
+${order.notes ? `<div style="font-size: 11px; margin-top: 4px; margin-bottom: 6px; font-weight: bold; background: #eee; padding: 2px 4px; border-radius: 4px;"><strong>NOTES:</strong> ${order.notes}</div>` : ''}
+
                 
                 <div style="border-bottom: 1px dashed black; margin-bottom: 6px;"></div>
                 <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px;">ITEMS LIST:</div>
