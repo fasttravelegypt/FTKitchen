@@ -330,7 +330,16 @@ async function loadOrders() {
                         total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
                         status: existingStatus,
                         timestamp: o.Timestamp || o.timestamp || new Date().toISOString(),
-			notes: o.Notes || o.notes || '' // <--- ADD THIS LINE
+                        notes: (() => {
+                            const rawNotes = o.Notes || o.notes || '';
+                            const couponMatch = rawNotes.match(/Coupon:\s*([A-Z0-9_-]+)\s*\(-([\d.]+)\s*EGP\)/i);
+                            return rawNotes
+                                .replace(/\s*\|\s*Coupon:\s*[A-Z0-9_-]+\s*\(-[\d.]+\s*EGP\)/i, '')
+                                .replace(/^\s*Coupon:\s*[A-Z0-9_-]+\s*\(-[\d.]+\s*EGP\)\s*\|\s*/i, '')
+                                .trim();
+                        })(),
+                        coupon: o.Coupon || o.coupon || ((o.Notes || o.notes || '').match(/Coupon:\s*([A-Z0-9_-]+)\s*\(-[\d.]+\s*EGP\)/i) || [,''])[1],
+                        couponDiscount: parseFloat(o.CouponDiscount || o.couponDiscount || (((o.Notes || o.notes || '').match(/Coupon:\s*[A-Z0-9_-]+\s*\(-([\d.]+)\s*EGP\)/i) || [,0])[1])) || 0
                     };
                 });
             }
@@ -531,6 +540,7 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
     <p class="text-slate-400 flex items-center space-x-1.5"><span>📍</span> <span class="text-white">${order.address}</span></p>
     <p class="text-slate-400 flex items-center space-x-1.5"><span>💳</span> <span class="text-white">${order.payment}</span></p>
     ${order.notes ? `<p class="text-amber-400 font-bold flex items-start space-x-1.5 pt-1 border-t border-red-950/60"><span>📝</span> <span>Note: ${order.notes}</span></p>` : ''}
+    ${order.coupon ? `<p class="text-emerald-400 font-bold flex items-center space-x-1.5 pt-1 border-t border-red-950/60"><span>🎟️</span> <span>Coupon: ${order.coupon}</span> <span class="text-red-400">(-${Number(order.couponDiscount || 0).toFixed(2)} EGP)</span></p>` : ''}
 </div>
 
                             <div class="bg-[#050508] p-3 rounded-2xl border border-red-950/80 space-y-1">
@@ -617,6 +627,7 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
 <div style="font-size: 11px; margin-bottom: 2px;"><strong>Phone:</strong> ${order.phone}</div>
 <div style="font-size: 11px; margin-bottom: 2px;"><strong>Address:</strong> ${order.address}</div>
 ${order.notes ? `<div style="font-size: 11px; margin-top: 4px; margin-bottom: 6px; font-weight: bold; background: #eee; padding: 2px 4px; border-radius: 4px;"><strong>NOTES:</strong> ${order.notes}</div>` : ''}
+${order.coupon ? `<div style="font-size: 11px; margin-top: 4px; margin-bottom: 6px; font-weight: bold;"><strong>COUPON:</strong> ${order.coupon} <span style="font-weight: bold;">(-${Number(order.couponDiscount || 0).toFixed(2)} EGP)</span></div>` : ''}
 
                 
                 <div style="border-bottom: 1px dashed black; margin-bottom: 6px;"></div>
