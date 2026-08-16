@@ -1,6 +1,5 @@
 const CONFIG = {
-  API_URL: "https://script.google.com/macros/s/AKfycbxELSqRHF6SyFq3_XVtbBuk90_NqCj8VoHg0s_vFKrcvNSsmCnpCeuBJJfANgu83Cypng/exec",
-  KITCHEN_PASSWORD: "11223344"
+  API_URL: "https://script.google.com/macros/s/AKfycbxjKcjElrDN3_dFIOcxtl2eHCTTgIswFNZtyJQdKbRHb2r_zPHddtW7qA4sGgL2C1isBA/exec"
 };
 
 // Security Utility: Sanitize inputs to prevent XSS attacks
