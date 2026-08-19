@@ -324,12 +324,27 @@ async function loadOrders() {
                         orderId: o.OrderID || o.orderId,
                         name: o.CustomerName || o.name,
                         phone: o.CustomerPhone || o.phone,
+						
+						city: o.City || o.city || '',
+  					    area: o.District || o.Area || o.area || '',
+						
                         address: o.Address || o.address || `${o.City || ''}, ${o.District || ''}`,
+						
                         payment: o.Payment || o.payment || 'Cash on Delivery',
+						
                         items: parsedItems,
+
+					    subtotal: Number(o.Subtotal || o.subtotal || 0),
+ 				        mealDiscount: Number(o.MealDiscount || o.mealDiscount || 0),
+					    couponDiscount: Number(o.CouponDiscount || o.couponDiscount || 0),
+    					deliveryFee: Number(o.DeliveryFee || o.deliveryFee || 0),
+						
                         total: o.Total ? `${o.Total} EGP` : (o.total || '0 EGP'),
+						
                         status: existingStatus,
+						
                         timestamp: o.Timestamp || o.timestamp || new Date().toISOString(),
+						
                         notes: (() => {
                             const rawNotes = o.Notes || o.notes || '';
                             const couponMatch = rawNotes.match(/Coupon:\s*([A-Z0-9_-]+)\s*\(-([\d.]+)\s*EGP\)/i);
@@ -548,10 +563,45 @@ let whatsappDesktopLink = `whatsapp://send?phone=${cleanPhone}`;
                                 ${itemsHtml}
                             </div>
 
-                            <div class="flex justify-between items-center text-sm font-black pt-1 px-1">
-                                <span class="text-slate-400">Total Settlement:</span>
-                                <span class="font-orbitron text-amber-400 text-base">${order.total}</span>
-                            </div>
+<div class="bg-[#050508] p-3 rounded-2xl border border-red-950/80 space-y-1.5 mt-2">
+
+    <div class="flex justify-between text-xs">
+        <span class="text-slate-500">Subtotal:</span>
+        <span class="text-slate-300">${order.subtotal.toFixed(2)} EGP</span>
+    </div>
+
+    ${order.mealDiscount > 0 ? `
+    <div class="flex justify-between text-xs">
+        <span class="text-emerald-400">Meal Discount:</span>
+        <span class="text-emerald-400">-${order.mealDiscount.toFixed(2)} EGP</span>
+    </div>
+    ` : ''}
+
+    ${order.couponDiscount > 0 ? `
+    <div class="flex justify-between text-xs">
+        <span class="text-emerald-400">Coupon Discount:</span>
+        <span class="text-emerald-400">-${order.couponDiscount.toFixed(2)} EGP</span>
+    </div>
+    ` : ''}
+
+    ${order.deliveryFee > 0 ? `
+    <div class="flex justify-between text-xs">
+        <span class="text-slate-400">Delivery Fee:</span>
+        <span class="text-slate-300">+${order.deliveryFee.toFixed(2)} EGP</span>
+    </div>
+    ` : `
+    <div class="flex justify-between text-xs">
+        <span class="text-slate-400">Delivery Fee:</span>
+        <span class="text-slate-300">0.00 EGP</span>
+    </div>
+    `}
+
+    <div class="border-t border-red-950/60 pt-2 mt-1 flex justify-between items-center text-sm font-black">
+        <span class="text-slate-400">Total Settlement:</span>
+        <span class="font-orbitron text-amber-400 text-base">${order.total}</span>
+    </div>
+
+</div>
                         </div>
 
                         <div class="space-y-2 pt-3 border-t border-red-950">
@@ -630,15 +680,42 @@ ${order.notes ? `<div style="font-size: 11px; margin-top: 4px; margin-bottom: 6p
 ${order.coupon ? `<div style="font-size: 11px; margin-top: 4px; margin-bottom: 6px; font-weight: bold;"><strong>COUPON:</strong> ${order.coupon} <span style="font-weight: bold;">(-${Number(order.couponDiscount || 0).toFixed(2)} EGP)</span></div>` : ''}
 
                 
-                <div style="border-bottom: 1px dashed black; margin-bottom: 6px;"></div>
-                <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px;">ITEMS LIST:</div>
-                ${itemsListHtml}
-                
-                <div style="border-bottom: 1px dashed black; margin-top: 6px; margin-bottom: 6px;"></div>
-                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
-                    <span>TOTAL SETTLEMENT:</span>
-                    <span>${order.total}</span>
-                </div>
+<div style="border-bottom: 1px dashed black; margin-top: 6px; margin-bottom: 6px;"></div>
+<div style="font-weight: bold; margin-bottom: 4px; font-size: 11px;">ITEMS LIST:</div>
+${itemsListHtml}
+
+<div style="border-bottom: 1px dashed black; margin-top: 6px; margin-bottom: 6px;"></div>
+
+<div style="display: flex; justify-content: space-between; font-size: 11px;">
+    <span>SUBTOTAL:</span>
+    <span>${Number(order.subtotal || 0).toFixed(2)} EGP</span>
+</div>
+
+${Number(order.mealDiscount || 0) > 0 ? `
+<div style="display: flex; justify-content: space-between; font-size: 11px;">
+    <span>MEAL DISCOUNT:</span>
+    <span>-${Number(order.mealDiscount).toFixed(2)} EGP</span>
+</div>
+` : ''}
+
+${Number(order.couponDiscount || 0) > 0 ? `
+<div style="display: flex; justify-content: space-between; font-size: 11px;">
+    <span>COUPON DISCOUNT:</span>
+    <span>-${Number(order.couponDiscount).toFixed(2)} EGP</span>
+</div>
+` : ''}
+
+<div style="display: flex; justify-content: space-between; font-size: 11px;">
+    <span>DELIVERY FEE:</span>
+    <span>${Number(order.deliveryFee || 0).toFixed(2)} EGP</span>
+</div>
+
+<div style="border-bottom: 1px dashed black; margin-top: 6px; margin-bottom: 6px;"></div>
+
+<div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
+    <span>TOTAL SETTLEMENT:</span>
+    <span>${order.total}</span>
+</div>
                 <div style="font-size: 11px; margin-top: 4px;"><strong>Payment:</strong> ${order.payment}</div>
                 <div style="font-size: 11px; margin-top: 2px;"><strong>Status:</strong> ${order.status.toUpperCase()}</div>
                 
